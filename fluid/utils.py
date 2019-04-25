@@ -68,8 +68,8 @@ class OpIOsInfo():
         self.outputs = dict(
             [(name, op.output(name)) for name in op.output_names])
 
-        self._rename_input_args()
-        self._rename_output_args()
+        # self._rename_input_args()
+        # self._rename_output_args()
 
         return self.inputs, self.attrs, self.outputs
 

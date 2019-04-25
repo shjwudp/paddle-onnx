@@ -20,6 +20,7 @@ from onnx import helper, checker
 import paddle.fluid as fluid
 
 import fluid_onnx.ops as ops
+import onnx_transformer.transformer as transformer
 from fluid_onnx.variables import paddle_variable_to_onnx_tensor, paddle_onnx_weight
 
 
@@ -29,7 +30,7 @@ def parse_args():
     parser.add_argument(
         "--fluid_model", required=True, help="Input PaddlePaddle Fluid model.")
     parser.add_argument(
-        "--onnx_model", required=True, help="The path to save ONNX model.")
+        "--onnx_model", default='./fluid_to_onnx.onnx', help="The path to save ONNX model.")
     parser.add_argument(
         "--to_print_model",
         action='store_true',
@@ -54,8 +55,15 @@ def convert(args):
     with fluid.scope_guard(inference_scope):
 
         # Load inference program and other target attributes
-        [inference_program, feed_target_names,
-         fetch_targets] = fluid.io.load_inference_model(args.fluid_model, exe)
+        try:
+            [inference_program, feed_target_names,
+            fetch_targets] = fluid.io.load_inference_model(
+                args.fluid_model, exe)
+        except:
+            # try fluid old mode
+            [inference_program, feed_target_names,
+            fetch_targets] = fluid.io.load_inference_model(
+                args.fluid_model, exe, 'model', 'params')
 
         # Load parameters
         weights, weights_value_info = [], []
@@ -78,20 +86,23 @@ def convert(args):
         onnx_nodes = []
         for block in inference_program.blocks:
             for op in block.ops:
-                if op.type in ops.node_maker:
-                    # TODO(kuke): deal with the corner case that vars in 
-                    #     different blocks have the same name
-                    node_proto = ops.node_maker[op.type](operator=op,
-                                                         block=block)
+                if op.type not in ['feed', 'fetch']:
+                    node_proto = ops.fluid_to_onnx_op(operator=op, block=block)
+                    onnx_nodes.append(node_proto)
+                # if op.type in ops.node_maker:
+                #     # TODO(kuke): deal with the corner case that vars in 
+                #     #     different blocks have the same name
+                #     node_proto = ops.node_maker[op.type](operator=op,
+                #                                          block=block)
 
-                    if isinstance(node_proto, tuple):
-                        onnx_nodes.extend(list(node_proto))
-                    else:
-                        onnx_nodes.append(node_proto)
-                else:
-                    if op.type not in ['feed', 'fetch']:
-                        raise NotImplementedError("OP[%s] is not supported in "
-                                                  "the converter!" % op.type)
+                #     if isinstance(node_proto, tuple):
+                #         onnx_nodes.extend(list(node_proto))
+                #     else:
+                #         onnx_nodes.append(node_proto)
+                # else:
+                #     if op.type not in ['feed', 'fetch']:
+                #         raise NotImplementedError("OP[%s] is not supported in "
+                #                                   "the converter!" % op.type)
 
         # Create outputs
         fetch_target_names = [
@@ -117,11 +128,14 @@ def convert(args):
             inputs=inputs + weights_value_info,
             outputs=outputs)
 
+        # transform onnx_graph
+        transformer.transform(onnx_graph)
+
         # Make model
         onnx_model = helper.make_model(onnx_graph, producer_name='PaddlePaddle')
 
         # Model check
-        checker.check_model(onnx_model)
+        # checker.check_model(onnx_model)
 
         # Print model
         if args.to_print_model:
