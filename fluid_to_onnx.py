@@ -128,8 +128,10 @@ def convert(args):
             inputs=inputs + weights_value_info,
             outputs=outputs)
 
-        # transform onnx_graph
-        transformer.transform(onnx_graph)
+        # perform the neccessary conversions on onnx_graph
+        transformer.required_transform(onnx_graph)
+
+        transformer.add_split_op_for_shared_output(onnx_graph)
 
         # Make model
         onnx_model = helper.make_model(onnx_graph, producer_name='PaddlePaddle')

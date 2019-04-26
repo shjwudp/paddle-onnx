@@ -34,10 +34,14 @@ __onnx_ver__ = onnx.version.version
 def fluid_to_onnx_op(operator, block):
     inputs, attrs, outputs = op_io_info(operator)
 
+    if 'op_type' in attrs:
+        assert '_op_type' not in attrs
+        attrs['_op_type'] = attrs.pop('op_type')
+
     return make_node(
         operator.type,
         inputs=set(flatten(inputs.values())),
         outputs=set(flatten(outputs.values())),
-        inputs_json=json.dumps(inputs), # save inputs.parameters => inputs.arguments
-        outputs_json=json.dumps(outputs), # save outputs.parameters => outputs.arguments
+        inputs_desc=json.dumps(inputs), # save inputs.parameters => inputs.arguments
+        outputs_desc=json.dumps(outputs), # save outputs.parameters => outputs.arguments
         **attrs)

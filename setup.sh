@@ -1,12 +1,8 @@
 #!/usr/bin/env bash
 
-# install dependencies
-apt-get install -y protobuf-compiler libprotoc-dev
+set -Eeuxo pipefail
 
 pip install -r requirements.txt
 
-if [ $? != 0 ]; then
-    echo "Install python dependencies failed !!!"
-    exit 1
-fi
-
+proto_dir="./onnx_transformer/proto"
+protoc -I ${proto_dir} --python_out ${proto_dir} ${proto_dir}/*.proto
